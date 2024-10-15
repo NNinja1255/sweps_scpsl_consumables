@@ -11,7 +11,7 @@ end
 SWEP.PrintName = "SCP 207"
 SWEP.Author = "Craft_Pig"
 SWEP.Purpose = "Harmfully increases motor skills."
-SWEP.Category = "SCP"
+SWEP.Category = "SCP: SL"
 
 SWEP.ViewModelFOV = 65
 SWEP.ViewModel = "models/weapons/sweps/scpsl/207/v_207.mdl"
@@ -57,7 +57,6 @@ function SWEP:Deploy()
     self:SendWeaponAnim(ACT_VM_DRAW)
     self.IdleTimer = CurTime() + self.Owner:GetViewModel():SequenceDuration()
 	self.Idle = 0
-	self.InitializeHealing = 0
 	self.vmcamera = nil
 
 	-- self:SetNextPrimaryFire(CurTime() + self.Owner:GetViewModel():SequenceDuration())
@@ -82,16 +81,6 @@ local function Heal(owner, weapon)
 end
 
 function Apply207Buff(owner, swep)
-    if owner.Consumed207 == 3 then return end
-	
-	-- if owner.Consumed207 == 0 and owner.Consumed1853 == 0 and owner.ConsumedAnti207 == 0 then
-	    -- owner.DefaultJumpHeightSCPSL = owner:GetJumpPower()  
-        -- owner.DefaultRunSpeedSCPSL = owner:GetRunSpeed()
-	-- end
-	
-	-- owner.Decay207Timer = CurTime() + 0
-	owner.Consumed207 = owner.Consumed207 + 1
-	
 	if not owner:HaveEffect("SCPCola1") and not owner:HaveEffect("SCPCola2") and not owner:HaveEffect("SCPCola3") then
         owner:ApplyEffect("SCPCola1", math.huge)
     elseif owner:HaveEffect("SCPCola1") then
@@ -102,7 +91,7 @@ function Apply207Buff(owner, swep)
         owner:SoftRemoveEffect("SCPCola2")
     end
 	
-	if owner.ConsumedAnti207 ~= 0 then
+	if owner:HaveEffect("SCPAntiCola1") or owner:HaveEffect("SCPAntiCola2") then
 		local explosionPos = owner:GetPos()
                 
         local effectData = EffectData()
@@ -136,6 +125,32 @@ function SWEP:PrimaryAttack()
 end
 
 function SWEP:SecondaryAttack()
+    if CLIENT then return end
+    if self.InitializeHealing == 1 then
+	    self.InitializeHealing = 0
+		self:SetNextPrimaryFire(CurTime() + 0)
+		self:Deploy()
+	else
+        local owner = self:GetOwner()
+        local startPos = owner:GetShootPos()
+        local aimVec = owner:GetAimVector()
+        local endPos = startPos + (aimVec * 110)
+
+        local trace = util.TraceLine({
+            start = startPos,
+            endpos = endPos,
+            filter = owner
+        })
+        if trace.HitPos then
+            local ENT = ents.Create("weapon_scpsl_207")
+            if IsValid(ENT) then
+                ENT:SetPos(trace.HitPos + trace.HitNormal * 5)
+                ENT:Spawn()
+            end
+        end
+	    owner:RemoveAmmo(1, "scp-207")
+	    if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_207") end -- Reminder
+	end
 end
 
 function SWEP:Think()
@@ -147,13 +162,11 @@ function SWEP:Think()
 	
 	if self.InitializeHealing == 1 and self.IdleTimer <= CurTime() then
 	    if ( IsValid(owner) && SERVER ) then
+		    self.InitializeHealing = 0
             Heal(owner, self)
 			if InitializeSEF == true then Apply207Buff(owner, swep) end		
 		end
 	end
-end
-
-function SWEP:SecondaryAttack()
 end
 
 function SWEP:PostDrawViewModel( vm )

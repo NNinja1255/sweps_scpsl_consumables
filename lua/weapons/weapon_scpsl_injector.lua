@@ -12,11 +12,11 @@ SWEP.PrintName = "Adrenaline"
 SWEP.Author = "Craft_Pig"
 SWEP.Purpose = [[
 Provides 40 Temporary Armor
-Grants +40 Units of Movespeed
+Grants +60 Units of Movespeed
 ]]
-SWEP.Category = "SCP"
+SWEP.Category = "SCP: SL"
 
-SWEP.ViewModelFOV = 65
+SWEP.ViewModelFOV = 70
 SWEP.ViewModel = "models/weapons/sweps/scpsl/injector/v_injector.mdl"
 SWEP.WorldModel = "models/weapons/sweps/scpsl/injector/w_injector.mdl"
 SWEP.UseHands = true
@@ -62,6 +62,15 @@ function SWEP:Deploy()
 
 	-- self:SetNextPrimaryFire(CurTime() + self.Owner:GetViewModel():SequenceDuration())
 	
+	timer.Simple(0.05, function()
+        if IsValid(self) and IsValid(self.Owner) then
+            local vm = self.Owner:GetViewModel()
+            if IsValid(vm) then
+                vm:SetSkin(0) 
+            end
+        end
+    end)
+	
 	if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_injector") end
 	
 	return true
@@ -75,17 +84,9 @@ local function Heal(owner, weapon)
         if IsValid(owner) and SERVER and activeWeapon:GetClass() == "weapon_scpsl_injector" then
         
 			if InitializeSEF == true then
-			    -- if owner:HaveEffect("Discharge") then
-				    -- DischargeTime = owner:GetTimeLeft("Discharge")
-					-- owner:SoftRemoveEffect("Discharge")
-					-- owner:ApplyEffect("Energized", 1, 40, 1)
-				    -- owner:ApplyEffect("Haste", 5, 40)
-				    -- owner:ApplyEffect("Discharge", math.min(41 + DischargeTime, owner:GetMaxArmor()), 1, 1)
-				-- else
-				    owner:ApplyEffect("Energized", 1, 40, 1)
-				    owner:ApplyEffect("Haste", 5, 40)
-				    -- owner:ApplyEffect("Discharge", 41 , 1, 1)
-				-- end
+				    owner:ApplyEffect("TempShield", 40, 40)
+				    owner:ApplyEffect("Haste", 25, 60)
+				    -- owner:ApplyEffect("Discharge", 20 , 1, 1)
 			else
                 owner:SetHealth(math.min(owner:GetMaxHealth(), owner:Health() + HealAmount))
                 owner:SetArmor(math.min(owner:GetMaxArmor(), owner:Armor() + ArmorAmount))
@@ -107,7 +108,34 @@ function SWEP:PrimaryAttack()
 	self.InitializeHealing = 1
 	self.Idle = 1
 end
+
 function SWEP:SecondaryAttack()
+    if CLIENT then return end
+    if self.InitializeHealing == 1 then
+	    self.InitializeHealing = 0
+		self:SetNextPrimaryFire(CurTime() + 0)
+		self:Deploy()
+	else
+        local owner = self:GetOwner()
+        local startPos = owner:GetShootPos()
+        local aimVec = owner:GetAimVector()
+        local endPos = startPos + (aimVec * 110)
+
+        local trace = util.TraceLine({
+            start = startPos,
+            endpos = endPos,
+            filter = owner
+        })
+        if trace.HitPos then
+            local ENT = ents.Create("weapon_scpsl_injector")
+            if IsValid(ENT) then
+                ENT:SetPos(trace.HitPos + trace.HitNormal * 5)
+                ENT:Spawn()
+            end
+        end
+	    owner:RemoveAmmo(1, "injector")
+	    if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_injector") end -- Reminder
+	end
 end
 
 function SWEP:Think()
@@ -141,15 +169,15 @@ end
 if CLIENT then -- Worldmodel offset
 	local WorldModel = ClientsideModel(SWEP.WorldModel)
 
-	WorldModel:SetSkin(1)
+	WorldModel:SetSkin(0)
 	WorldModel:SetNoDraw(true)
 
 	function SWEP:DrawWorldModel()
 		local owner = self:GetOwner()
 
 		if (IsValid(owner)) then
-			local offsetVec = Vector(3, -0, -0)
-			local offsetAng = Angle(180, 90, 0)
+			local offsetVec = Vector(3, -1, -0)
+			local offsetAng = Angle(-90, 90, 0)
 			
 			local boneid = owner:LookupBone("ValveBiped.Bip01_R_Hand") -- Right Hand
 			if !boneid then return end

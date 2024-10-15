@@ -3,28 +3,29 @@ if SERVER then
 end
 
 if CLIENT then 
-    SWEP.WepSelectIcon = surface.GetTextureID( "vgui/hud/207anti" )
+    SWEP.WepSelectIcon = surface.GetTextureID( "vgui/hud/injector_yellow" )
 	SWEP.BounceWeaponIcon = true 
     SWEP.DrawWeaponInfoBox = true
 end
 
-SWEP.PrintName = "SCP Anti 207"
+SWEP.PrintName = "Rage Injector"
 SWEP.Author = "Craft_Pig"
-SWEP.Purpose = "Good for your health, bad for your motor skills."
+SWEP.Purpose = [[
+Grants 45 seconds of bloodlust.
+]]
 SWEP.Category = "SCP: SL"
 
-SWEP.ViewModelFOV = 65
-SWEP.ViewModel = "models/weapons/sweps/scpsl/207/v_anti207.mdl"
-SWEP.WorldModel = "models/weapons/sweps/scpsl/207/w_anti207.mdl"
+SWEP.ViewModelFOV = 70
+SWEP.ViewModel = "models/weapons/sweps/scpsl/injector/v_injector.mdl"
+SWEP.WorldModel = "models/weapons/sweps/scpsl/injector/w_injector.mdl"
 SWEP.UseHands = true
 SWEP.DrawCrosshair = false 
 
 SWEP.Spawnable = true
-SWEP.Slot = 5
-SWEP.SlotPos = 5
+SWEP.Slot = 0
+SWEP.SlotPos = 7
 SWEP.DrawAmmo = true
-
-SWEP.Primary.Ammo = "scp-207"
+SWEP.Primary.Ammo = "injector"
 SWEP.Primary.ClipSize = -1
 SWEP.Primary.DefaultClip = 1
 SWEP.Primary.Automatic = false
@@ -35,8 +36,9 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Automatic = false
 
 local HealAmount = 0
-local ArmorAmount = 0
-local HealTime = 4
+local ArmorAmount = 40
+local InitializeSEF = false
+local DischargeTime = nil
 
 function SWEP:Initialize()
     self:SetHoldType("slam")
@@ -56,66 +58,47 @@ function SWEP:Deploy()
     self.IdleTimer = CurTime() + self.Owner:GetViewModel():SequenceDuration()
 	self.Idle = 0
 	self.InitializeHealing = 0
-	self.vmcamera = nil
 
 	-- self:SetNextPrimaryFire(CurTime() + self.Owner:GetViewModel():SequenceDuration())
 	
-	if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_anti207") end -- Reminder
+	timer.Simple(0.05, function()
+        if IsValid(self) and IsValid(self.Owner) then
+            local vm = self.Owner:GetViewModel()
+            if IsValid(vm) then
+                vm:SetSkin(3) 
+            end
+        end
+    end)
+	
+	if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_injector_yellow") end
 	
 	return true
 end
 
 local function Heal(owner, weapon)
     local activeWeapon = owner:GetActiveWeapon()
-
+    
+	
     if IsValid(weapon) then
-        if IsValid(owner) and SERVER and activeWeapon:GetClass() == "weapon_scpsl_anti207" then -- Reminder
-            owner:SetHealth(math.min(owner:GetMaxHealth(), owner:Health() + HealAmount))
-            owner:SetArmor(math.min(owner:GetMaxArmor(), owner:Armor() + ArmorAmount))
-            owner:RemoveAmmo(1, "scp-207") -- Reminder
-            -- owner:EmitSound("scpsl_medkit_use_03")
+        if IsValid(owner) and SERVER and activeWeapon:GetClass() == "weapon_scpsl_injector_yellow" then
+        
+			if InitializeSEF == true then
+				    -- owner:ApplyEffect("Energized", 5, 1, 1)
+				    owner:ApplyEffect("Bloodlust", 45, 15, 5)
+			else
+                owner:SetHealth(math.min(owner:GetMaxHealth(), owner:Health() + HealAmount))
+                owner:SetArmor(math.min(owner:GetMaxArmor(), owner:Armor() + ArmorAmount))
+			end
+            owner:RemoveAmmo(1, "injector")
             weapon:Deploy()
         end
     end
-end
-
-function ApplyAnti207Buff(owner, swep)
-    -- if owner.ConsumedAnti207 == 2 then return end
-	
-	-- owner.ConsumedAnti207 = owner.ConsumedAnti207 + 1
-	
-	if not owner:HaveEffect("SCPAntiCola1") and not owner:HaveEffect("SCPAntiCola2")then
-        owner:ApplyEffect("SCPAntiCola1", math.huge)
-    elseif owner:HaveEffect("SCPAntiCola1") then
-        owner:ApplyEffect("SCPAntiCola2", math.huge)
-        owner:SoftRemoveEffect("SCPAntiCola1")
-    end
-	
-	if owner:HaveEffect("SCPCola1") or owner:HaveEffect("SCPCola1") or owner:HaveEffect("SCPCola3") then
-		local explosionPos = owner:GetPos()
-                
-        local effectData = EffectData()
-        effectData:SetOrigin(explosionPos)
-        effectData:SetScale(1) -- Scale of the explosion
-        effectData:SetRadius(300) -- Explosion radius
-        effectData:SetMagnitude(100) -- Explosion magnitude
-        util.Effect("HelicopterMegaBomb", effectData, true, true)
-
-        owner:EmitSound("BaseExplosionEffect.Sound", 100, 100)
-
-        if owner:Alive() then owner:Kill() end
-        util.BlastDamage(owner, owner, explosionPos, 150, 350)
-	end
 end
 
 function SWEP:PrimaryAttack()
     local owner = self.Owner
 
     if owner:GetAmmoCount(self.Primary.Ammo) == 0 then return end
-	
-	if SERVER then
-	    if owner:HaveEffect("Panacea") then return end
-	end
 
     self:SendWeaponAnim(ACT_VM_PRIMARYATTACK)
 	self:SetNextPrimaryFire(CurTime() + self.Owner:GetViewModel():SequenceDuration() + 0)
@@ -142,28 +125,27 @@ function SWEP:SecondaryAttack()
             filter = owner
         })
         if trace.HitPos then
-            local ENT = ents.Create("weapon_scpsl_anti207")
+            local ENT = ents.Create("weapon_scpsl_injector_yellow")
             if IsValid(ENT) then
                 ENT:SetPos(trace.HitPos + trace.HitNormal * 5)
                 ENT:Spawn()
             end
         end
-	    owner:RemoveAmmo(1, "scp-207")
-	    if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_anti207") end -- Reminder
+	    owner:RemoveAmmo(1, "injector")
+	    if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_injector_yellow") end -- Reminder
 	end
 end
 
 function SWEP:Think()
 	local owner = self.Owner
-    -- if self.Idle == 0 and self.IdleTimer <= CurTime() then -- Idle Sequence
-		-- self:SendWeaponAnim(ACT_VM_IDLE)  
-        -- self.Idle = 1
-    -- end
+    if self.Idle == 0 and self.IdleTimer <= CurTime() then -- Idle Sequence
+		self:SendWeaponAnim(ACT_VM_IDLE)  
+        self.Idle = 1
+    end
 	
 	if self.InitializeHealing == 1 and self.IdleTimer <= CurTime() then
-	    if ( IsValid(owner) && SERVER ) then
+	    if IsValid(self) then
             Heal(owner, self)
-			if InitializeSEF == true then ApplyAnti207Buff(owner, swep) end
 		end
 	end
 end
@@ -185,15 +167,15 @@ end
 if CLIENT then -- Worldmodel offset
 	local WorldModel = ClientsideModel(SWEP.WorldModel)
 
-	WorldModel:SetSkin(1)
+	WorldModel:SetSkin(3)
 	WorldModel:SetNoDraw(true)
 
 	function SWEP:DrawWorldModel()
 		local owner = self:GetOwner()
 
 		if (IsValid(owner)) then
-			local offsetVec = Vector(2, -1, -1)
-			local offsetAng = Angle(180, 0, 0)
+			local offsetVec = Vector(3, -1, -0)
+			local offsetAng = Angle(-90, 90, 0)
 			
 			local boneid = owner:LookupBone("ValveBiped.Bip01_R_Hand") -- Right Hand
 			if !boneid then return end
@@ -218,4 +200,3 @@ if CLIENT then -- Worldmodel offset
 
 	end
 end
-

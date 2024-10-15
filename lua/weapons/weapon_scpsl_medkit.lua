@@ -11,7 +11,7 @@ SWEP.Purpose =
 Heals 65 Health.
 Cures Bleeding and Exposed debuff                        					
 ]]
-SWEP.Category = "SCP"
+SWEP.Category = "SCP: SL"
 
 SWEP.ViewModelFOV = 65
 SWEP.ViewModel = "models/weapons/sweps/scpsl/medkit/v_medkit.mdl"
@@ -52,7 +52,7 @@ end
 
 function SWEP:Deploy()
     local owner = self:GetOwner() 
-
+	
     self:SendWeaponAnim(ACT_VM_DRAW)
     self.IdleTimer = CurTime() + self.Owner:GetViewModel():SequenceDuration()
 	self.Idle = 0
@@ -63,15 +63,24 @@ function SWEP:Deploy()
         if IsValid(self) and IsValid(self.Owner) then
             local vm = self.Owner:GetViewModel()
             if IsValid(vm) then
-                vm:SetSkin(0) -- Change this to 1 if you want the second texture group
+                vm:SetSkin(0) 
             end
         end
     end)
 
 	-- self:SetNextPrimaryFire(CurTime() + self.Owner:GetViewModel():SequenceDuration())
 	
-	if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_medkit") end -- Reminder
+	-- local PrevWeapon = owner:GetPreviousWeapon()
 	
+	-- print(owner:GetPreviousWeapon())
+
+    -- if not self:HasAmmo() then
+        -- if PrevWeapon:IsWeapon() then
+            -- owner:SetActiveWeapon(PrevWeapon)
+        -- end
+    -- end
+	
+	if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_medkit") end -- Reminder
 	return true
 end
 
@@ -109,6 +118,32 @@ function SWEP:PrimaryAttack()
 end
 
 function SWEP:SecondaryAttack()
+    if CLIENT then return end
+    if self.InitializeHealing == 1 then
+	    self.InitializeHealing = 0
+		self:SetNextPrimaryFire(CurTime() + 0)
+		self:Deploy()
+	else
+        local owner = self:GetOwner()
+        local startPos = owner:GetShootPos()
+        local aimVec = owner:GetAimVector()
+        local endPos = startPos + (aimVec * 110)
+
+        local trace = util.TraceLine({
+            start = startPos,
+            endpos = endPos,
+            filter = owner
+        })
+        if trace.HitPos then
+            local ENT = ents.Create("weapon_scpsl_medkit")
+            if IsValid(ENT) then
+                ENT:SetPos(trace.HitPos + trace.HitNormal * 5)
+                ENT:Spawn()
+            end
+        end
+	    owner:RemoveAmmo(1, "medkit")
+	    if owner:GetAmmoCount(self.Primary.Ammo) == 0 then owner:StripWeapon("weapon_scpsl_medkit") end -- Reminder
+	end
 end
 
 function SWEP:Think()
@@ -142,7 +177,7 @@ end
 if CLIENT then -- Worldmodel offset
 	local WorldModel = ClientsideModel(SWEP.WorldModel)
 
-	WorldModel:SetSkin(1)
+	WorldModel:SetSkin(0)
 	WorldModel:SetNoDraw(true)
 
 	function SWEP:DrawWorldModel()
